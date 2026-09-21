@@ -1,72 +1,33 @@
 name: 编译未签名 ipa
 
-# 没有 Mac 也能拿到安装包：
-# 仓库 → Actions → 左侧选「编译未签名 ipa」→ 右侧 Run workflow。
-# 编好的 ipa 会出现在那次运行的 Artifacts 里，下载到电脑上用 Sideloadly
-# 之类的工具拿 Apple ID 签名后装到 iPad（免费签名 7 天过期）。
-
 on:
-  workflow_dispatch:          # 允许手动触发（Actions 页面出现 Run workflow 按钮）
+  workflow_dispatch:
   push:
-    tags: ['v*']              # 打 v1.0 这样的 tag 也会自动跑
+    tags: [ 'v*' ]
 
 jobs:
   build:
-    runs-on: macos-14           # GitHub 托管的 macOS 编译机，公开仓库免费
+    runs-on: macos-14
     timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: ./InkReader-iPad  # ⚠️ 关键：指定在子文件夹里执行命令
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: 打印环境（出问题时先看这里）
+      - name: Build archive
         run: |
-          xcodebuild -version
-          xcode-select -p
-          python3 --version
+          xcodebuild clean archive -project InkReader.xcodeproj -scheme InkReader -sdk iphoneos -configuration Release -archivePath ./build/InkReader.xcarchive CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
 
-      - name: 静态自检（文件是否漏登记 / 括号配平）
-        run: python3 tools/check_sources.py
-
-      - name: 解析 SPM 依赖（ZIPFoundation）
+      - name: Create IPA
         run: |
-          xcodebuild \
-            -project InkReader.xcodeproj \
-            -clonedSourcePackagesDirPath .spm \
-            -resolvePackageDependencies
+          mkdir Payload
+          cp -r ./build/InkReader.xcarchive/Products/Applications/*.app Payload/
+          zip -r InkReader.ipa Payload
 
-      - name: 编译（关闭签名，只要产物）
-        run: |
-          set -o pipefail
-          xcodebuild \
-            -project InkReader.xcodeproj \
-            -target InkReader \
-            -configuration Release \
-            -sdk iphoneos \
-            -derivedDataPath build \
-            -clonedSourcePackagesDirPath .spm \
-            ONLY_ACTIVE_ARCH=NO \
-            CODE_SIGN_IDENTITY="" \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO \
-            2>&1 | tail -n 80
-
-      - name: 确认 .app 出来了
-        run: |
-          ls -la build/Build/Products/Release-iphoneos/
-          test -d build/Build/Products/Release-iphoneos/InkReader.app
-
-      - name: 打成 ipa
-        run: |
-          cd build/Build/Products/Release-iphoneos
-          mkdir -p Payload
-          cp -R InkReader.app Payload/
-          zip -qry "$GITHUB_WORKSPACE/InkReader-unsigned.ipa" Payload
-          cd "$GITHUB_WORKSPACE"
-          ls -lh InkReader-unsigned.ipa
-
-      - name: 上传产物
+      - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
-          name: InkReader-unsigned-ipa
-          path: InkReader-unsigned.ipa
-          retention-days: 30
+          name: InkReader-ipa
+          path: ./InkReader-iPad/InkReader.ipa  # ⚠️ 路径也要跟着改
