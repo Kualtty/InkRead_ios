@@ -9,12 +9,13 @@ jobs:
   build:
     runs-on: macos-14
     timeout-minutes: 30
-    defaults:
-      run:
-        working-directory: ./InkReader-iPad  # ⚠️ 关键：指定在子文件夹里执行命令
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: List Schemes (检查方案名)
+        run: |
+          xcodebuild -list -project InkReader.xcodeproj
 
       - name: Build archive
         run: |
@@ -30,4 +31,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: InkReader-ipa
-          path: ./InkReader-iPad/InkReader.ipa  # ⚠️ 路径也要跟着改
+          path: InkReader.ipa
