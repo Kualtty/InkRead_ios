@@ -1,0 +1,33 @@
+name: 编译未签名 ipa
+
+on:
+  workflow_dispatch:
+  push:
+    tags: [ 'v*' ]
+
+jobs:
+  build:
+    runs-on: macos-14
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: ./InkReader-iPad  # ⚠️ 关键：指定在子文件夹里执行命令
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build archive
+        run: |
+          xcodebuild clean archive -project InkReader.xcodeproj -scheme InkReader -sdk iphoneos -configuration Release -archivePath ./build/InkReader.xcarchive CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
+
+      - name: Create IPA
+        run: |
+          mkdir Payload
+          cp -r ./build/InkReader.xcarchive/Products/Applications/*.app Payload/
+          zip -r InkReader.ipa Payload
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: InkReader-ipa
+          path: ./InkReader-iPad/InkReader.ipa  # ⚠️ 路径也要跟着改
